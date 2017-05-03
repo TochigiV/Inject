@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 		HWND hWnd = FindWindow(NULL, argv[1]);
 		if (hWnd)
 		{
-			std::cout << "Injecting..." << std::endl;
+			std::cout << "Injecting...";
 			DWORD processID;
 			GetWindowThreadProcessId(hWnd, &processID);
 			HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
@@ -63,5 +63,6 @@ int main(int argc, char *argv[])
 	{
 		std::cout << "Usage: Inject [WINDOWNAME] [DLLS]" << std::endl;
 	}
+	std::cout << "Done!" << std::endl;
 	return 0;
 }
