@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 {
 	SetConsoleTitle("Inject");
 	std::cout << "Inject\nby Tochigi" << std::endl;
-	if (argc > 3)
+	if (argc > 2)
 	{
 		HWND hWnd = FindWindow(NULL, argv[1]);
 		if (hWnd)
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 					if (!LoadLibEx(hProc, path))
 					{
 						break;
-						std::cout << "Failed to inject " << argv[i] << "!" << std::endl;
+						std::cout << "Failed to inject \"" << argv[i] << "!\"" << std::endl;
 						system("pause");
 						return -1;
 					}
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			std::cout << "Failed to find window " << argv[1] << "!" << std::endl;
+			std::cout << "Failed to find window \"" << argv[1] << "!\"" << std::endl;
 			system("pause");
 			return -1;
 		}
@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
 	else
 	{
 		std::cout << "Usage: Inject [WINDOWNAME] [DLLS]" << std::endl;
+		system("pause");
+		return -1;
 	}
 	std::cout << "Done!" << std::endl;
 	return 0;
