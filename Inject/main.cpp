@@ -18,7 +18,7 @@ BOOL LoadLibEx(HANDLE Process, const char* DLL)
 
 int main(int argc, char *argv[])
 {
-	SetConsoleTitle("Inject.exe");
+	SetConsoleTitle("Inject");
 	std::cout << "Inject\nby Tochigi" << std::endl;
 	if (argc > 3)
 	{
