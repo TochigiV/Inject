@@ -22,10 +22,10 @@ int main(int argc, char *argv[])
 	std::cout << "Inject\nby Tochigi" << std::endl;
 	if (argc > 3)
 	{
-		if (FindWindow(NULL, argv[1]))
+		HWND hWnd = FindWindow(NULL, argv[1]);
+		if (hWnd)
 		{
 			std::cout << "Injecting..." << std::endl;
-			HWND hWnd = FindWindow(NULL, argv[1]);
 			DWORD processID;
 			GetWindowThreadProcessId(hWnd, &processID);
 			HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
