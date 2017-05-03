@@ -63,4 +63,5 @@ int main(int argc, char *argv[])
 	{
 		std::cout << "Usage: Inject [WINDOWNAME] [DLLS]" << std::endl;
 	}
+	return 0;
 }
