@@ -5,10 +5,21 @@
 
 BOOL LoadLibEx(HANDLE Process, const char* DLL)
 {
-	void* RemoteString;
-	RemoteString = (void*)VirtualAllocEx(Process, NULL, strlen(DLL), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	WriteProcessMemory(Process, (void*)RemoteString, DLL, strlen(DLL), NULL);
+	void* RemoteString = VirtualAllocEx(Process, NULL, strlen(DLL), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	WriteProcessMemory(Process, RemoteString, DLL, strlen(DLL), NULL);
 	HANDLE hThread = CreateRemoteThread(Process, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "LoadLibraryA"), RemoteString, NULL, NULL);
+	WaitForSingleObject(hThread, -1);
+	DWORD eCode;
+	GetExitCodeThread(hThread, &eCode);
+	if (hThread == INVALID_HANDLE_VALUE || eCode == 0) return FALSE;
+	return TRUE;
+}
+
+BOOL CheckModule(HANDLE hProcess, const char* modulename)
+{
+	void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(modulename), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	WriteProcessMemory(hProcess, RemoteString, modulename, strlen(modulename), NULL);
+	HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "GetModuleHandleA"), RemoteString, NULL, NULL);
 	WaitForSingleObject(hThread, -1);
 	DWORD eCode;
 	GetExitCodeThread(hThread, &eCode);
@@ -33,14 +44,18 @@ int main(int argc, char *argv[])
 			{
 				for (int i = 2; i < argc; i++)
 				{
-					char path[MAX_PATH];
-					GetFullPathName(argv[i], MAX_PATH, path, NULL);
-					if (!LoadLibEx(hProc, path))
+					if (!CheckModule(hProc, argv[i]))
 					{
-						break;
-						std::cout << "Failed to inject \"" << argv[i] << "!\"" << std::endl;
-						system("pause");
-						return -1;
+						char path[MAX_PATH];
+						GetFullPathName(argv[i], MAX_PATH, path, NULL);
+						if (!LoadLibEx(hProc, path))
+						{
+							std::cout << "Failed to inject \"" << argv[i] << "!\"" << std::endl;
+						}
+					}
+					else
+					{
+						std::cout << "\"" << argv[i] << "\"" << " is already injected!" << std::endl;
 					}
 				}
 				CloseHandle(hProc);
@@ -48,23 +63,16 @@ int main(int argc, char *argv[])
 			else
 			{
 				std::cout << "Failed to open process!" << std::endl;
-				system("pause");
-				return -1;
 			}
 		}
 		else
 		{
 			std::cout << "Failed to find window \"" << argv[1] << "!\"" << std::endl;
-			system("pause");
-			return -1;
 		}
 	}
 	else
 	{
 		std::cout << "Usage: Inject [WINDOWNAME] [DLLS]" << std::endl;
-		system("pause");
-		return -1;
 	}
-	std::cout << "Done!" << std::endl;
 	return 0;
 }
