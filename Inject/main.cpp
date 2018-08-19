@@ -4,43 +4,116 @@
 
 #define WIN32_LEAN_AND_MEAN
 
+#define Error() printf("Error in " __FUNCTION__ ": 0x%X\n", GetLastError()); \
+				return FALSE;
+
 BOOL LoadLibEx(HANDLE hProcess, const char* DLL)
 {
 	//Write the DLL path to the memory of the process we want to inject our DLL into
-	void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(DLL), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	WriteProcessMemory(hProcess, RemoteString, DLL, strlen(DLL), NULL);
-
-	//Create a remote thread in the process and call LoadLibraryA
-	HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "LoadLibraryA"), RemoteString, NULL, NULL);
-	
-	//Wait for the exit code
-	WaitForSingleObject(hThread, -1);
-	DWORD eCode;
-	GetExitCodeThread(hThread, &eCode);
-
-	//Free the path string
-	VirtualFreeEx(hProcess, RemoteString, strlen(DLL), MEM_RELEASE);
-
-	if (hThread == INVALID_HANDLE_VALUE || eCode == 0) return FALSE;
-	return TRUE;
+	if(void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(DLL), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))
+	{
+		if(WriteProcessMemory(hProcess, RemoteString, DLL, strlen(DLL), NULL))
+		{	
+			//Call the function LoadLibraryA in the target process
+			HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "LoadLibraryA"), RemoteString, NULL, NULL);
+			if(hThread != INVALID_HANDLE_VALUE)
+			{
+				//Wait for the exit code
+				if(WaitForSingleObject(hThread, INFINITE) != WAIT_FAILED)
+				{
+					DWORD eCode;
+					if(GetExitCodeThread(hThread, &eCode))
+					{					
+						//Free the path string
+						if(VirtualFreeEx(hProcess, RemoteString, strlen(DLL), MEM_RELEASE))
+						{
+							if (eCode == NULL)
+								return FALSE;
+							return TRUE;
+						}
+						else
+						{
+							Error();
+						}
+					}
+					else
+					{
+						Error();
+					}
+				}
+				else
+				{
+					Error();
+				}
+			}
+			else
+			{
+				Error();
+			}
+		}
+		else
+		{
+			Error();
+		}
+	}
+	else
+	{
+		Error();
+	}
 }
 
-BOOL CheckModule(HANDLE hProcess, const char* modulename)
+BOOL CheckModule(HANDLE hProcess, const char* moduleName)
 {
-	void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(modulename), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	WriteProcessMemory(hProcess, RemoteString, modulename, strlen(modulename), NULL);
-	HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "GetModuleHandleA"), RemoteString, NULL, NULL);
-	WaitForSingleObject(hThread, -1);
-	DWORD eCode;
-	GetExitCodeThread(hThread, &eCode);
-
-	VirtualFreeEx(hProcess, RemoteString, strlen(modulename), MEM_RELEASE);
-
-	if (hThread == INVALID_HANDLE_VALUE || eCode == 0) return FALSE;
-	return TRUE;
+	if(void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(moduleName), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))
+	{
+		if(WriteProcessMemory(hProcess, RemoteString, moduleName, strlen(moduleName), NULL))
+		{
+			HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "GetModuleHandleA"), RemoteString, NULL, NULL);
+			if(hThread != INVALID_HANDLE_VALUE)
+			{
+				if(WaitForSingleObject(hThread, INFINITE) != WAIT_FAILED)
+				{
+					DWORD eCode;
+					if(GetExitCodeThread(hThread, &eCode))
+					{
+						if(VirtualFreeEx(hProcess, RemoteString, strlen(moduleName), MEM_RELEASE))
+						{
+							if (eCode == NULL)
+								return FALSE;
+							return TRUE;
+						}
+						else
+						{
+							Error();
+						}
+					}
+					else
+					{
+						Error();
+					}
+				}
+				else
+				{
+					Error();
+				}
+			}
+			else
+			{
+				Error();
+			}
+		}
+		else
+		{
+			Error();
+		}
+	}
+	else
+	{
+		Error();
+	}
 }
 
-DWORD GetProcessID(const char* ProcessName)
+DWORD GetProcessID(const char* processName)
 {
 	DWORD pid = 0;
 	PROCESSENTRY32 pe32;
@@ -49,7 +122,7 @@ DWORD GetProcessID(const char* ProcessName)
 	Process32First(snapshot, &pe32);
 	while (Process32Next(snapshot, &pe32))
 	{
-		if (strcmp(ProcessName, pe32.szExeFile) == 0)
+		if (strcmp(processName, pe32.szExeFile) == 0)
 		{
 			pid = pe32.th32ProcessID;
 			break;
@@ -61,14 +134,12 @@ DWORD GetProcessID(const char* ProcessName)
 
 int main(int argc, char *argv[])
 {
-	SetConsoleTitle("Inject");
-	std::cout << "Inject\nby Tochigi" << std::endl;
 	if (argc > 2)
 	{
 		DWORD processID = GetProcessID(argv[1]);
 		if (processID)
 		{
-			std::cout << "Injecting...";
+			std::cout << "Injecting..." << std::endl;
 			HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
 			if (hProc)
 			{
