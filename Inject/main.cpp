@@ -19,7 +19,7 @@ BOOL LoadLibEx(HANDLE hProcess, const char* DLL)
 			if(hThread != INVALID_HANDLE_VALUE)
 			{
 				//Wait for the exit code
-				if(WaitForSingleObject(hThread, INFINITE) != WAIT_FAILED)
+				if(WaitForSingleObject(hThread, -1) != WAIT_FAILED)
 				{
 					DWORD eCode;
 					if(GetExitCodeThread(hThread, &eCode))
@@ -71,7 +71,7 @@ BOOL CheckModule(HANDLE hProcess, const char* moduleName)
 			HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "GetModuleHandleA"), RemoteString, NULL, NULL);
 			if(hThread != INVALID_HANDLE_VALUE)
 			{
-				if(WaitForSingleObject(hThread, INFINITE) != WAIT_FAILED)
+				if(WaitForSingleObject(hThread, -1) != WAIT_FAILED)
 				{
 					DWORD eCode;
 					if(GetExitCodeThread(hThread, &eCode))
