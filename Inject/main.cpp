@@ -4,121 +4,123 @@
 
 #define WIN32_LEAN_AND_MEAN
 
-#define Error() printf("Error in " __FUNCTION__ ": 0x%X\n", GetLastError()); \
-				return FALSE;
+#define ERROREXIT(errorMessage, returnValue)  printf("\nError in " __FUNCTION__ ": " errorMessage "\nError code: 0x%X\n\n", GetLastError()); \
+				return returnValue;
 
-BOOL LoadLibEx(HANDLE hProcess, const char* DLL)
+BOOL loadLibEx(HANDLE hProcess, const char* dll)
 {
-	//Write the DLL path to the memory of the process we want to inject our DLL into
-	if(void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(DLL), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))
+	//Allocate some memory in the target process for the DLL path string
+	if (void* remoteString = VirtualAllocEx(hProcess, NULL, strlen(dll), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))
 	{
-		if(WriteProcessMemory(hProcess, RemoteString, DLL, strlen(DLL), NULL))
-		{	
-			//Call the function LoadLibraryA in the target process
-			HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "LoadLibraryA"), RemoteString, NULL, NULL);
-			if(hThread != INVALID_HANDLE_VALUE)
-			{
-				//Wait for the exit code
-				if(WaitForSingleObject(hThread, -1) != WAIT_FAILED)
-				{
-					DWORD eCode;
-					if(GetExitCodeThread(hThread, &eCode))
-					{					
-						//Free the path string
-						if(VirtualFreeEx(hProcess, RemoteString, strlen(DLL), MEM_RELEASE))
-						{
-							if (eCode == NULL)
-								return FALSE;
-							return TRUE;
-						}
-						else
-						{
-							Error();
-						}
-					}
-					else
-					{
-						Error();
-					}
-				}
-				else
-				{
-					Error();
-				}
-			}
-			else
-			{
-				Error();
-			}
-		}
-		else
+		HANDLE hThread;
+		DWORD eCode;
+
+		//Write the path of the DLL into the memory of the process
+		if (!WriteProcessMemory(hProcess, remoteString, dll, strlen(dll), NULL))
 		{
-			Error();
+			ERROREXIT("Failed to write path string to memory!", FALSE);
 		}
+
+		//Call the function LoadLibraryA in the target process
+		hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "LoadLibraryA"), remoteString, NULL, NULL);
+		if (hThread == INVALID_HANDLE_VALUE)
+		{
+			ERROREXIT("Failed to create remote thread!", FALSE);
+		}
+
+		//Wait for the thread to terminate
+		if (WaitForSingleObject(hThread, -1) == WAIT_FAILED)
+		{
+			ERROREXIT("Failed to wait for thread to terminate!", FALSE);
+		}
+
+		//Get the exit code
+		if (!GetExitCodeThread(hThread, &eCode))
+		{
+			ERROREXIT("Failed to get the exit code of the thread!", FALSE);
+		}
+
+		//Close the the handle to the remote thread
+		if (!CloseHandle(hThread))
+		{
+			ERROREXIT("Failed to close the thread handle!", FALSE);
+		}
+
+		//Free the path string
+		if (!VirtualFreeEx(hProcess, remoteString, NULL, MEM_RELEASE))
+		{
+			ERROREXIT("Failed to free memory for path string!", FALSE);
+		}
+
+		//Return if the exit code is 0 or not
+		return (eCode != NULL);
 	}
 	else
 	{
-		Error();
+		ERROREXIT("Failed to allocate memory for path string!", FALSE);
 	}
 }
 
-BOOL CheckModule(HANDLE hProcess, const char* moduleName)
+DWORD getModuleHandleEx(HANDLE hProcess, const char* moduleName)
 {
-	if(void* RemoteString = VirtualAllocEx(hProcess, NULL, strlen(moduleName), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))
+	//Allocate some memory in the target process for the module name string
+	if (void* remoteString = VirtualAllocEx(hProcess, NULL, strlen(moduleName), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE))
 	{
-		if(WriteProcessMemory(hProcess, RemoteString, moduleName, strlen(moduleName), NULL))
+		HANDLE hThread;
+		DWORD eCode;
+
+		//Write the name of the module into the memory of the process
+		if (!WriteProcessMemory(hProcess, remoteString, moduleName, strlen(moduleName), NULL))
 		{
-			HANDLE hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "GetModuleHandleA"), RemoteString, NULL, NULL);
-			if(hThread != INVALID_HANDLE_VALUE)
-			{
-				if(WaitForSingleObject(hThread, -1) != WAIT_FAILED)
-				{
-					DWORD eCode;
-					if(GetExitCodeThread(hThread, &eCode))
-					{
-						if(VirtualFreeEx(hProcess, RemoteString, strlen(moduleName), MEM_RELEASE))
-						{
-							if (eCode == NULL)
-								return FALSE;
-							return TRUE;
-						}
-						else
-						{
-							Error();
-						}
-					}
-					else
-					{
-						Error();
-					}
-				}
-				else
-				{
-					Error();
-				}
-			}
-			else
-			{
-				Error();
-			}
+			ERROREXIT("Failed to write module string to memory!", -1);
 		}
-		else
+
+		//Call the function GetModuleHandleA in the target process
+		hThread = CreateRemoteThread(hProcess, NULL, NULL, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("Kernel32.dll"), "GetModuleHandleA"), remoteString, NULL, NULL);
+		if (hThread == INVALID_HANDLE_VALUE)
 		{
-			Error();
+			ERROREXIT("Failed to create remote thread!", -1);
 		}
+
+		//Wait for the thread to terminate
+		if (WaitForSingleObject(hThread, -1) == WAIT_FAILED)
+		{
+			ERROREXIT("Failed to wait for the thread to terminate!", -1);
+		}
+
+		//Get the exit code of the thread
+		if (!GetExitCodeThread(hThread, &eCode))
+		{
+			ERROREXIT("Failed to get the exit code of the thread!", -1);
+		}
+
+		//Free the module name string
+		if (!VirtualFreeEx(hProcess, remoteString, NULL, MEM_RELEASE))
+		{
+			ERROREXIT("Failed to free memory for module string!", -1);
+		}
+
+		//Close the handle to the thread
+		if (!CloseHandle(hThread))
+		{
+			ERROREXIT("Failed to close the thread handle!", -1);
+		}
+
+		//Return the exit code
+		return eCode;
 	}
 	else
 	{
-		Error();
+		ERROREXIT("Failed to allocate memory for module string!", -1);
 	}
 }
 
-DWORD GetProcessID(const char* processName)
+DWORD getProcessID(const char* processName)
 {
 	DWORD pid = 0;
 	PROCESSENTRY32 pe32;
-	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
 	pe32.dwSize = sizeof(PROCESSENTRY32);
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
 	Process32First(snapshot, &pe32);
 	while (Process32Next(snapshot, &pe32))
 	{
@@ -128,7 +130,6 @@ DWORD GetProcessID(const char* processName)
 			break;
 		}
 	}
-	CloseHandle(snapshot);
 	return pid;
 }
 
@@ -136,44 +137,54 @@ int main(int argc, char *argv[])
 {
 	if (argc > 2)
 	{
-		DWORD processID = GetProcessID(argv[1]);
-		if (processID)
-		{
-			std::cout << "Injecting..." << std::endl;
-			HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
-			if (hProc)
-			{
-				for (int i = 2; i < argc; i++)
-				{
-					if (!CheckModule(hProc, argv[i]))
-					{
-						char path[MAX_PATH];
-						GetFullPathName(argv[i], MAX_PATH, path, NULL);
-						if (!LoadLibEx(hProc, path))
-						{
-							std::cout << "Failed to inject \"" << argv[i] << "!\"" << std::endl;
-						}
-					}
-					else
-					{
-						std::cout << "\"" << argv[i] << "\"" << " is already injected!" << std::endl;
-					}
-				}
-				CloseHandle(hProc);
-			}
-			else
-			{
-				std::cout << "Failed to open process!" << std::endl;
-			}
-		}
-		else
+		DWORD processID = getProcessID(argv[1]);
+		if (processID == 0)
 		{
 			std::cout << "Failed to find process \"" << argv[1] << "!\"" << std::endl;
+			return -1;
+		}
+
+		std::cout << "Injecting..." << std::endl;
+
+		HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
+		if (!hProc)
+		{
+			std::cout << "Failed to open process!" << std::endl;
+			return -1;
+		}
+
+		for (int i = 2; i < argc; i++)
+		{
+			switch (getModuleHandleEx(hProc, argv[i]))
+			{
+			case 0:
+			{
+				char path[MAX_PATH];
+				GetFullPathName(argv[i], MAX_PATH, path, NULL);
+
+				if (!loadLibEx(hProc, path))
+				{
+					std::cout << "Failed to inject \"" << argv[i] << "!\"" << std::endl;
+				}
+			}
+			break;
+			case -1:
+				ExitProcess(-1);
+			break;
+			default:
+				std::cout << "\"" << argv[i] << "\"" << " is already loaded in the specified process!" << std::endl;
+			}
+		}
+
+		if (!CloseHandle(hProc))
+		{
+			ERROREXIT("Failed to close process handle!", -1);
 		}
 	}
 	else
 	{
 		std::cout << "Usage: Inject [PROCNAME] [DLLS]" << std::endl;
+		return -1;
 	}
 	return 0;
 }
